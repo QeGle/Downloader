@@ -6,7 +6,8 @@ import com.qegle.downloader.model.Pack
 import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.locks.ReentrantLock
 
-class DownloadManager(private val sharedPreferences: SharedPreferences, private val tempFolder: String) {
+class DownloadManager(private val sharedPreferences: SharedPreferences, private val tempFolder: String,
+                      private val timingListener: TimingListener? = null) {
 
 	private val loadingArray = arrayListOf<Pack>()
 	private var listener: DownloadListener? = null
@@ -67,6 +68,7 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 				.subscribe()
 			loadingArray.add(newPack)
 			newPack.tempFolder = tempFolder
+			newPack.timingListener = timingListener
 			newPack.download { loadSuccess(newPack) }
 		} else {
 			pack.resume()
@@ -128,4 +130,14 @@ interface DownloadListener {
 interface OnProgressUpdate {
 
 	fun progressUpdate(id: String, value: Int)
+}
+
+interface TimingListener {
+	/**
+	 * @param url - url файла
+	 * @param waiting - время ожидания ответа в милисекундах
+	 * @param loading - время загрузки в милисекундах
+	 * @param size - размер файла в байтах
+	 */
+	fun onLoading(url: String, waiting: Long, loading: Long, fileSize: Long)
 }

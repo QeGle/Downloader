@@ -16,6 +16,7 @@ class Item(val url: String, val path: String, val id: String, val namePrefix: St
 	constructor(url: String, path: String, namePrefix: String = "", onNewFolder: Boolean = true) : this(url, path, url.id(), namePrefix = namePrefix, onNewFolder = onNewFolder)
 
 	var tempFolder: String = ""
+	var timingListener: TimingListener? = null
 	var status: LoadStatus = LoadStatus.PAUSE
 	var progressSubject: PublishSubject<Int> = PublishSubject.create()
 	var errorSubject: PublishSubject<Pair<ErrorType, String>> = PublishSubject.create()
@@ -26,7 +27,8 @@ class Item(val url: String, val path: String, val id: String, val namePrefix: St
 		if (status == LoadStatus.IN_PROGRESS) stop()
 		loader = DownloadFile(path, tempFolder, url, onNewFolder, filename = if (overrideName) id else null, namePrefix = namePrefix,
 			needClearDestinyFolder = needClearDestinyFolder, needClearUnpackFolder = needClearUnpackFolder,
-			onSuccess = {
+			onSuccess = { url: String, waiting: Long, loading: Long, fileSize: Long ->
+				timingListener?.onLoading(url, waiting, loading, fileSize)
 				status = LoadStatus.COMPLETE
 				onSuccess.invoke()
 			},

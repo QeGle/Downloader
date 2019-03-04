@@ -1,7 +1,6 @@
 package com.qegle.downloader.model
 
-import com.qegle.downloader.ErrorType
-import com.qegle.downloader.LoadStatus
+import com.qegle.downloader.*
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 
@@ -17,6 +16,7 @@ class Pack(val id: String, val items: List<Item>) {
 	var progressSubject: PublishSubject<Int> = PublishSubject.create()
 	var errorSubject: PublishSubject<Pair<ErrorType, String>> = PublishSubject.create()
 	var currLoadingItem: Item? = null
+	var timingListener: TimingListener? = null
 
 	internal fun download(onSuccess: () -> Unit) {
 		if (status == LoadStatus.IN_PROGRESS) stop()
@@ -35,6 +35,7 @@ class Pack(val id: String, val items: List<Item>) {
 			return
 		}
 		currLoadingItem?.tempFolder = tempFolder
+		currLoadingItem?.timingListener = timingListener
 
 		val err = currLoadingItem?.errorSubject
 			?.subscribeOn(Schedulers.io())
