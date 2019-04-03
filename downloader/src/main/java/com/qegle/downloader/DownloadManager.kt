@@ -135,9 +135,8 @@ interface OnProgressUpdate {
 interface TimingListener {
 	/**
 	 * @param url - url файла
-	 * @param waiting - время ожидания ответа в милисекундах
 	 * @param loading - время загрузки в милисекундах
-	 * @param size - размер файла в байтах
+	 * @param fileSize - размер файла в байтах
 	 */
-	fun onLoading(url: String, waiting: Long, loading: Long, fileSize: Long)
+	fun onLoading(url: String, loading: Long, fileSize: Long)
 }

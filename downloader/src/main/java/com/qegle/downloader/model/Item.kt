@@ -27,8 +27,8 @@ class Item(val url: String, val path: String, val id: String, val namePrefix: St
 		if (status == LoadStatus.IN_PROGRESS) stop()
 		loader = DownloadFile(path, tempFolder, url, onNewFolder, filename = if (overrideName) id else null, namePrefix = namePrefix,
 			needClearDestinyFolder = needClearDestinyFolder, needClearUnpackFolder = needClearUnpackFolder,
-			onSuccess = { url: String, waiting: Long, loading: Long, fileSize: Long ->
-				timingListener?.onLoading(url, waiting, loading, fileSize)
+			onSuccess = { url: String, loading: Long, fileSize: Long ->
+				timingListener?.onLoading(url, loading, fileSize)
 				status = LoadStatus.COMPLETE
 				onSuccess.invoke()
 			},

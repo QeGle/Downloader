@@ -14,7 +14,7 @@ internal class DownloadFile(private val destinationFolder: String,
                             val needClearDestinyFolder: Boolean = false,
                             val needClearUnpackFolder: Boolean = false,
                             val filename: String? = null,
-                            var onSuccess: (url: String, waiting: Long, loading: Long, fileSize: Long) -> Unit,
+                            var onSuccess: (url: String, loading: Long, fileSize: Long) -> Unit,
                             var onProgress: (progress: Int) -> Unit,
                             var onError: (type: ErrorType, message: String) -> Unit) : Thread(sUrl) {
 	var isPaused = false
@@ -22,26 +22,27 @@ internal class DownloadFile(private val destinationFolder: String,
 	private var fileDownloadProgress = .0
 
 	override fun run() {
-		downloadFileFromURL(destinationFolder, tempFolder, sUrl)
+		var url =
+			if (sUrl[sUrl.lastIndex] == '/')
+				sUrl.substring(0, sUrl.lastIndex)
+			else
+				sUrl
+
+		downloadFileFromURL(destinationFolder, tempFolder, url)
 	}
 
-	private fun downloadFileFromURL(destinationFolderPath: String, tempFolderPath: String, url: String) {
+	private fun downloadFileFromURL(destinationFolderPath: String, tempFolderPath: String, sUrl: String) {
 		if (isStopped) return
 		fileDownloadProgress = .0
+		var loading: Long = 0
+
 		var input: InputStream? = null
 		var output: OutputStream? = null
 		var connection: HttpURLConnection? = null
 
-		val waiting: Long
-		var loading: Long = 0
-
 		try {
-			val startWaiting = System.currentTimeMillis()
-			var sUrl = url
-			if (sUrl[sUrl.length - 1] == '/') {
-				sUrl = sUrl.substring(0, sUrl.length - 1)
-			}
 			val url = URL(sUrl)
+			var startLoadingTime = System.currentTimeMillis()
 			connection = url.openConnection() as HttpURLConnection
 			connection.connect()
 			if (isStopped) {
@@ -68,8 +69,6 @@ internal class DownloadFile(private val destinationFolder: String,
 
 			val fileName = namePrefix + (filename ?: requestedFileName) + extension
 
-			waiting = System.currentTimeMillis() - startWaiting
-			var startLoadingTime = System.currentTimeMillis()
 
 			val destFolder = File(destinationFolderPath)
 			val tempFolder = File(tempFolderPath)
@@ -136,6 +135,7 @@ internal class DownloadFile(private val destinationFolder: String,
 				output.write(data, 0, count)
 			}
 			closeConnection(input, output, connection)
+			loading += System.currentTimeMillis() - startLoadingTime
 
 			if (isStopped) {
 				closeConnection(input, output, connection)
@@ -146,18 +146,17 @@ internal class DownloadFile(private val destinationFolder: String,
 				destFolder.listFiles().forEach { it.deleteRecursively() }
 			}
 
-			loading += System.currentTimeMillis() - startLoadingTime
 
 			closeConnection(input, output, connection)
 			if (downloadFile.extension == "zip") {
 				val unpackFolder = if (onNewFolder) File(destFolder, downloadFile.nameWithoutExtension) else destFolder
 				if (needClearUnpackFolder) unpackFolder.listFiles()?.forEach { it.deleteRecursively() }
 				downloadFile.extract(unpackFolder,
-					onSuccess = { onSuccess.invoke(sUrl, waiting, loading, fileLength) })
+					onSuccess = { onSuccess.invoke(sUrl, loading, fileLength) })
 			} else {
 				if (fileLength == downloadFile.length() || fileLength == -1L) {
 					if (downloadFile.parentFile.path != destFolder.path) downloadFile.copyTo(File(destFolder, downloadFile.name), true)
-					onSuccess.invoke(sUrl, waiting, loading, fileLength)
+					onSuccess.invoke(sUrl, loading, fileLength)
 				}
 			}
 		} catch (e: Exception) {
