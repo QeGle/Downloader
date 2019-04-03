@@ -57,7 +57,7 @@ internal class DownloadFile(private val destinationFolder: String,
 				error(ErrorType.LOAD, "code: ${connection.responseCode}, respMsg:${connection.responseMessage}")
 				return
 			}
-			val fileLength = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+			var fileLength = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
 				connection.contentLengthLong
 			else
 				connection.contentLength.toLong()
@@ -136,6 +136,8 @@ internal class DownloadFile(private val destinationFolder: String,
 			}
 			closeConnection(input, output, connection)
 			loading += System.currentTimeMillis() - startLoadingTime
+
+			if (fileLength<total) fileLength = total.toLong()
 
 			if (isStopped) {
 				closeConnection(input, output, connection)
