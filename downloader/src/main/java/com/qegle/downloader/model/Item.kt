@@ -85,9 +85,11 @@ class Item(val id: String, val url: String, var meta: Meta) {
 	}
 
 	fun isExist(): Boolean {
-		val folder = File(meta.savingFolder, meta.namePrefix + (meta.fileName ?: id) + meta.namePostfix)
+		val folder = File(meta.savingFolder)
 		if (folder.exists() && folder.isDirectory) {
-			val x = folder.listFiles()?.find { it.nameWithoutExtension == id }
+			val x = folder.listFiles()?.find {
+				it.nameWithoutExtension == meta.namePrefix + (meta.fileName ?: id) + meta.namePostfix
+			}
 
 			return x != null
 		}
