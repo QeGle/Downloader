@@ -148,7 +148,7 @@ internal class DownloadFile(private val item: Item,
 			} else {
 				if (fileLength == downloadFile.length() || fileLength == -1L) {
 					if (downloadFile.parentFile.path != destFolder.path)
-						downloadFile.copyTo(File(destFolder, meta.fileName ?: downloadFile.name), true)
+						downloadFile.copyTo(File(destFolder, (meta.fileName ?: downloadFile.nameWithoutExtension) + downloadFile.extension), true)
 					onSuccess.invoke(sUrl, loading, fileLength)
 				}
 			}

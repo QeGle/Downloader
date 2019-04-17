@@ -6,7 +6,7 @@ class Meta(var loadingFolder: String,
            val fileName: String? = null,
            val tempFileName: String? = fileName,
 
-           val onNewFolder: Boolean = false,
+           val onNewFolder: Boolean = true,
            val needClearFolder: Boolean = false,
 
            val namePrefix: String = "",
