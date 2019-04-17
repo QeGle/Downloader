@@ -1,6 +1,8 @@
 package com.qegle.downloader.model
 
-import com.qegle.downloader.*
+import com.qegle.downloader.ErrorType
+import com.qegle.downloader.LoadStatus
+import io.reactivex.observers.DisposableObserver
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 
@@ -9,14 +11,11 @@ import io.reactivex.subjects.PublishSubject
  */
 
 class Pack(val id: String, val items: List<Item>) {
-	constructor(id: String, item: Item) : this(id, arrayListOf(item))
 
-	internal var tempFolder: String = ""
 	var status: LoadStatus = LoadStatus.PAUSE
 	var progressSubject: PublishSubject<Int> = PublishSubject.create()
 	var errorSubject: PublishSubject<Pair<ErrorType, String>> = PublishSubject.create()
 	var currLoadingItem: Item? = null
-	var timingListener: TimingListener? = null
 
 	internal fun download(onSuccess: () -> Unit) {
 		if (status == LoadStatus.IN_PROGRESS) stop()
@@ -34,21 +33,36 @@ class Pack(val id: String, val items: List<Item>) {
 			success(onSuccess)
 			return
 		}
-		currLoadingItem?.tempFolder = tempFolder
-		currLoadingItem?.timingListener = timingListener
 
 		val err = currLoadingItem?.errorSubject
 			?.subscribeOn(Schedulers.io())
 			?.observeOn(Schedulers.io())
-			?.doOnNext { error -> itemError(error.first, error.second) }
-			?.doOnError { error -> itemError(ErrorType.LOAD, error.message ?: "") }
-			?.subscribe()
+			?.subscribeWith(object : DisposableObserver<Pair<ErrorType, String>?>() {
+				override fun onComplete() {}
+
+				override fun onNext(error: Pair<ErrorType, String>) {
+					itemError(error.first, error.second)
+				}
+
+				override fun onError(error: Throwable) {
+					itemError(ErrorType.LOAD, error.message ?: "")
+				}
+			})
+
 		val progress = currLoadingItem?.progressSubject
 			?.subscribeOn(Schedulers.io())
 			?.observeOn(Schedulers.io())
-			?.doOnNext { progress -> itemProgressUpdate(progress) }
-			?.doOnError { error -> itemError(ErrorType.LOAD, error.message ?: "") }
-			?.subscribe()
+			?.subscribeWith(object : DisposableObserver<Int?>() {
+				override fun onComplete() {}
+
+				override fun onNext(progress: Int) {
+					itemProgressUpdate(progress)
+				}
+
+				override fun onError(error: Throwable) {
+					itemError(ErrorType.LOAD, error.message ?: "")
+				}
+			})
 
 		currLoadingItem?.download {
 			err?.dispose()
@@ -56,7 +70,6 @@ class Pack(val id: String, val items: List<Item>) {
 			doNext(onSuccess)
 		}
 		status = LoadStatus.IN_PROGRESS
-
 	}
 
 	private fun itemProgressUpdate(progress: Int) {

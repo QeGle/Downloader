@@ -2,36 +2,39 @@ package com.qegle.downloader
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.qegle.downloader.extensions.withTempFolder
+import com.qegle.downloader.extensions.withTimingListener
 import com.qegle.downloader.model.Pack
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.observers.DisposableObserver
+import io.reactivex.rxkotlin.addTo
 import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.locks.ReentrantLock
 
 class DownloadManager(private val sharedPreferences: SharedPreferences, private val tempFolder: String,
                       private val timingListener: TimingListener? = null) {
 
-	private val loadingArray = arrayListOf<Pack>()
-	private var listener: DownloadListener? = null
-	private var onProgressUpdate: OnProgressUpdate? = null
-	private val arrayLock = ReentrantLock()
+	private val loadingArray = mutableListOf<Pack>()
 
-	fun setOnProgressUpdate(listener: (id: String, value: Int) -> Unit) {
-		this.onProgressUpdate = object : OnProgressUpdate {
-			override fun progressUpdate(id: String, value: Int) {
-				listener.invoke(id, value)
-			}
-		}
-	}
+	var onLoadSuccess: (id: String) -> Unit = {}
+	var onLoadError: (id: String, message: String) -> Unit = { _, _ -> }
+	var onUnzipError: (id: String, message: String) -> Unit = { _, _ -> }
+	var onUnknownError: (id: String, message: String) -> Unit = { _, _ -> }
+
+	var onProgressUpdate: (id: String, progress: Int) -> Unit = { _, _ -> }
+
+	private val arrayLock = ReentrantLock()
 
 	fun setDownloadListener(
 		onLoadSuccess: (id: String) -> Unit = {},
 		onLoadError: (id: String, message: String) -> Unit = { _, _ -> },
-		onUnzipError: (id: String, message: String) -> Unit = { _, _ -> }
+		onUnzipError: (id: String, message: String) -> Unit = { _, _ -> },
+		onUnknownError: (id: String, message: String) -> Unit = { _, _ -> }
 	) {
-		this.listener = object : DownloadListener {
-			override fun downloadSuccess(id: String) = onLoadSuccess.invoke(id)
-			override fun downloadError(id: String, message: String) = onLoadError.invoke(id, message)
-			override fun unzipError(id: String, message: String) = onUnzipError.invoke(id, message)
-		}
+		this.onLoadSuccess = onLoadSuccess
+		this.onLoadError = onLoadError
+		this.onUnzipError = onUnzipError
+		this.onUnknownError = onUnknownError
 	}
 
 	fun download(pack: Pack) {
@@ -40,6 +43,8 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 		else
 			downloadWithoutCheck(pack)
 	}
+
+	val compositeDisposable = CompositeDisposable()
 
 	fun downloadWithoutCheck(newPack: Pack) {
 		arrayLock.lock()
@@ -52,23 +57,37 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 			newPack.progressSubject
 				.subscribeOn(Schedulers.io())
 				.observeOn(Schedulers.io())
-				.doOnNext { onProgressUpdate?.progressUpdate(newPack.id, it) }
-				.subscribe()
+				.subscribeWith(object : DisposableObserver<Int?>() {
+					override fun onComplete() {}
+
+					override fun onNext(progress: Int) {
+						onProgressUpdate.invoke(newPack.id, progress)
+					}
+
+					override fun onError(e: Throwable) {}
+				}).addTo(compositeDisposable)
 
 			newPack.errorSubject
 				.subscribeOn(Schedulers.io())
 				.observeOn(Schedulers.io())
-				.doOnNext { error ->
-					when (error.first) {
-						ErrorType.LOAD -> listener?.downloadError(newPack.id, error.second)
-						ErrorType.ZIP -> listener?.unzipError(newPack.id, error.second)
+				.subscribeWith(object : DisposableObserver<Pair<ErrorType, String>?>() {
+					override fun onComplete() {}
+
+					override fun onNext(error: Pair<ErrorType, String>) {
+						when (error.first) {
+							ErrorType.LOAD -> onLoadError.invoke(newPack.id, error.second)
+							ErrorType.ZIP -> onUnzipError.invoke(newPack.id, error.second)
+							ErrorType.UNKNOWN -> onUnknownError.invoke(newPack.id, error.second)
+						}
+						loadError(newPack)
 					}
-					loadError(newPack)
-				}
-				.subscribe()
+
+					override fun onError(e: Throwable) {}
+				}).addTo(compositeDisposable)
+
 			loadingArray.add(newPack)
-			newPack.tempFolder = tempFolder
-			newPack.timingListener = timingListener
+			newPack.withTempFolder(tempFolder)
+			timingListener?.let { newPack.withTimingListener(it) }
 			newPack.download { loadSuccess(newPack) }
 		} else {
 			pack.resume()
@@ -80,7 +99,7 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 		arrayLock.lock()
 		sharedPreferences.edit(commit = true) { putString(pack.id, UPLOADED) }
 		removePack(pack)
-		listener?.downloadSuccess(pack.id)
+		onLoadSuccess.invoke(pack.id)
 		loadingArray.firstOrNull()?.let { it.download { loadSuccess(it) } }
 		arrayLock.unlock()
 	}
@@ -109,6 +128,7 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 		arrayLock.lock()
 		loadingArray.forEach { it.stop() }
 		arrayLock.unlock()
+		compositeDisposable.clear()
 	}
 
 }
@@ -118,19 +138,7 @@ const val UPLOADED = "UPLOADED"
 
 enum class LoadStatus { IN_PROGRESS, PAUSE, ERROR, COMPLETE, CANCEL }
 
-enum class ErrorType { LOAD, ZIP }
-
-interface DownloadListener {
-
-	fun downloadSuccess(id: String)
-	fun downloadError(id: String, message: String)
-	fun unzipError(id: String, message: String)
-}
-
-interface OnProgressUpdate {
-
-	fun progressUpdate(id: String, value: Int)
-}
+enum class ErrorType { LOAD, ZIP, UNKNOWN }
 
 interface TimingListener {
 	/**
