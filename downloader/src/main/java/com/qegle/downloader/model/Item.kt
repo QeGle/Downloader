@@ -8,11 +8,49 @@ import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import java.io.File
 
-/**
- * Created by Sergey Makhaev on 30.10.2017.
- */
 
-class Item(val id: String, val url: String, var meta: Meta) {
+interface IItem {
+	/**
+	 * Уникальный идентификатор
+	 */
+	val id: String
+
+	/**
+	 * Ничинает загрузку. Возвращает реультат в $onSuccess
+	 * @param onSuccess - вызывается при успешной загрузке
+	 */
+	fun download(onSuccess: () -> Unit)
+
+	/**
+	 * Ставит заргузку на паузу
+	 */
+	fun pause()
+
+	/**
+	 * Возобновляет загрузку
+	 */
+	fun resume()
+
+	/**
+	 * Останавливает загрузку. Без возможности возобновить!!
+	 */
+	fun stop()
+
+	/**
+	 * Проверяет на успешность загрузки текущего item'a
+	 */
+	fun isExist(): Boolean
+}
+
+/**
+ * Класс-обертка над загрузкой самого файла.
+ * Управляет загрузкой "себя" и обработкой результатов
+ * @param id - уникальный идентификатор
+ * @param url - урл для загрузки
+ * @param meta - метаинформация
+ *
+ */
+class Item(override val id: String, val url: String, var meta: Meta) : IItem {
 	constructor(id: String, url: String, loadingFolder: String) : this(id, url, Meta(loadingFolder))
 
 	var timingListener: TimingListener? = null
@@ -23,7 +61,7 @@ class Item(val id: String, val url: String, var meta: Meta) {
 	private var progress = 0
 	private var loadingDis: Disposable? = null
 
-	internal fun download(onSuccess: () -> Unit) {
+	override fun download(onSuccess: () -> Unit) {
 		if (status == LoadStatus.IN_PROGRESS) stop()
 
 		loadingDis = Observable.create<Int> {
@@ -60,21 +98,21 @@ class Item(val id: String, val url: String, var meta: Meta) {
 			})
 	}
 
-	fun pause() {
+	override fun pause() {
 		if (status != LoadStatus.IN_PROGRESS) return
 		status = LoadStatus.PAUSE
 		loader?.isPaused = true
 	}
 
-	fun resume() {
+	override fun resume() {
 		if (status != LoadStatus.PAUSE) return
 		status = LoadStatus.IN_PROGRESS
 		loader?.isPaused = false
 	}
 
-	fun stop() {
+	override fun stop() {
 		loadingDis?.dispose()
-		loader?.stopLoading()
+		loader?.stop()
 		loader = null
 		status = LoadStatus.CANCEL
 	}
@@ -84,7 +122,7 @@ class Item(val id: String, val url: String, var meta: Meta) {
 		return "Item(url=$url, path=${folder.path}, id=$id)"
 	}
 
-	fun isExist(): Boolean {
+	override fun isExist(): Boolean {
 		val folder = File(meta.savingFolder)
 		if (folder.exists() && folder.isDirectory) {
 			val x = folder.listFiles()?.find {
@@ -97,4 +135,8 @@ class Item(val id: String, val url: String, var meta: Meta) {
 	}
 }
 
+/**
+ * Генерируется при ошибке загрузки. содержит в себе тип события, которое ее вызвало.
+ * @param type - тип события, которое вызвало ошибку
+ */
 class LoadingException(val type: ErrorType, message: String) : Exception(message)

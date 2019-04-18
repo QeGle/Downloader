@@ -11,8 +11,61 @@ import io.reactivex.rxkotlin.addTo
 import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.locks.ReentrantLock
 
+/**
+ * Интерфейс менеджера загрузок. Содержит основные поля
+ */
+interface IDownloadManager {
+	fun setDownloadListener(
+		onLoadSuccess: (id: String) -> Unit = {},
+		onLoadError: (id: String, message: String) -> Unit = { _, _ -> },
+		onUnzipError: (id: String, message: String) -> Unit = { _, _ -> },
+		onUnknownError: (id: String, message: String) -> Unit = { _, _ -> }
+	)
+
+	/**
+	 * Метод для загрузки группы файлов. Если файлы уже загружены - будет вызван loadSuccess
+	 *
+	 * @param pack - Набор файлов для загрузки с уникальным идентификатором
+	 */
+	fun download(pack: Pack)
+
+	/**
+	 * Метод для загрузки группы файлов без проверки на их наличие
+	 *
+	 * @param pack - Набор файлов для загрузки с уникальным идентификатором
+	 */
+	fun downloadWithoutCheck(pack: Pack)
+
+	/**
+	 * Проверка на успешность загрузки
+	 *
+	 * @param pack - Набор файлов для загрузки с уникальным идентификатором
+	 */
+	fun isDownloaded(pack: Pack): Boolean
+
+	/**
+	 * Проверка на наличие записи об успешной загрузке определенной группы
+	 *
+	 * @param id - идентификатор группы
+	 */
+	fun isLoadedSuccess(id: String): Boolean
+
+	/**
+	 * Уничтожение менеджера. Остановка всех загрузок
+	 */
+	fun destroy()
+}
+
+/**
+ * Представляет из себя менеджера загрузок. Загружает последовательно группы файлов по принциппу FIFO
+ *
+ * @param sharedPreferences в него при загрузке записывается статус файла на момент окончания загрузки
+ * @param tempFolder путь к папке для временного(на время загрузки) хранения файлов
+ * @param timingListener интерфейс для получения метрики по загрузкам. Будет вызван только при успешной загрузке
+ *
+ */
 class DownloadManager(private val sharedPreferences: SharedPreferences, private val tempFolder: String,
-                      private val timingListener: TimingListener? = null) {
+                      private val timingListener: TimingListener? = null) : IDownloadManager {
 
 	private val loadingArray = mutableListOf<Pack>()
 
@@ -25,11 +78,11 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 
 	private val arrayLock = ReentrantLock()
 
-	fun setDownloadListener(
-		onLoadSuccess: (id: String) -> Unit = {},
-		onLoadError: (id: String, message: String) -> Unit = { _, _ -> },
-		onUnzipError: (id: String, message: String) -> Unit = { _, _ -> },
-		onUnknownError: (id: String, message: String) -> Unit = { _, _ -> }
+	override fun setDownloadListener(
+		onLoadSuccess: (id: String) -> Unit,
+		onLoadError: (id: String, message: String) -> Unit,
+		onUnzipError: (id: String, message: String) -> Unit,
+		onUnknownError: (id: String, message: String) -> Unit
 	) {
 		this.onLoadSuccess = onLoadSuccess
 		this.onLoadError = onLoadError
@@ -37,16 +90,16 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 		this.onUnknownError = onUnknownError
 	}
 
-	fun download(pack: Pack) {
+	override fun download(pack: Pack) {
 		if (isDownloaded(pack))
 			loadSuccess(pack)
 		else
 			downloadWithoutCheck(pack)
 	}
 
-	val compositeDisposable = CompositeDisposable()
+	private val compositeDisposable = CompositeDisposable()
 
-	fun downloadWithoutCheck(newPack: Pack) {
+	override fun downloadWithoutCheck(newPack: Pack) {
 		arrayLock.lock()
 		sharedPreferences.edit(commit = true) { remove(newPack.id) }
 
@@ -116,15 +169,15 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 		loadingArray.remove(pack)
 	}
 
-	fun isDownloaded(pack: Pack): Boolean {
+	override fun isDownloaded(pack: Pack): Boolean {
 		return isLoadedSuccess(pack.id) && pack.isFilesExist()
 	}
 
-	fun isLoadedSuccess(id: String): Boolean {
+	override fun isLoadedSuccess(id: String): Boolean {
 		return sharedPreferences.getString(id, "") == UPLOADED
 	}
 
-	fun destroy() {
+	override fun destroy() {
 		arrayLock.lock()
 		loadingArray.forEach { it.stop() }
 		arrayLock.unlock()
@@ -136,10 +189,20 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 const val DOWNLOADED_FILES = "DOWNLOADED_FILES"
 const val UPLOADED = "UPLOADED"
 
+/**
+ * Статусы загрузок
+ */
 enum class LoadStatus { IN_PROGRESS, PAUSE, ERROR, COMPLETE, CANCEL }
 
+/**
+ * Типы ошибок
+ */
 enum class ErrorType { LOAD, ZIP, UNKNOWN }
 
+
+/**
+ * Функциональный интерфейс для получения метрики по загрузкам
+ */
 interface TimingListener {
 	/**
 	 * @param url - url файла

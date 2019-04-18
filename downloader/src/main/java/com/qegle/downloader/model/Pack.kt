@@ -6,18 +6,55 @@ import io.reactivex.observers.DisposableObserver
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 
+interface IPack {
+	/**
+	 * Уникальный идентификатор
+	 */
+	val id: String
+
+	/**
+	 * Ничинает загрузку. Возвращает реультат в $onSuccess
+	 * @param onSuccess - вызывается при успешной загрузке
+	 */
+	fun download(onSuccess: () -> Unit)
+
+	/**
+	 * Ставит заргузку текущего item'a на паузу
+	 */
+	fun pause()
+
+	/**
+	 * Возобновляет загрузку текущего item'a
+	 */
+	fun resume()
+
+	/**
+	 * Останавливает текущего item'a загрузку. Без возможности возобновить!!
+	 */
+	fun stop()
+
+	/**
+	 * Проверяет на успешность загрузки все item'ы
+	 */
+	fun isFilesExist(): Boolean
+}
+
 /**
- * Created by Sergey Makhaev on 30.10.2017.
+ * Класс-обертка над группой файлов. Файлы загружаются последовательно.
+ *
+ * @param id - идентификатор группы файлов.
+ * @param items - сама группа файлов
  */
 
-class Pack(val id: String, val items: List<Item>) {
+class Pack(override val id: String, val items: List<Item>) : IPack {
+
 
 	var status: LoadStatus = LoadStatus.PAUSE
 	var progressSubject: PublishSubject<Int> = PublishSubject.create()
 	var errorSubject: PublishSubject<Pair<ErrorType, String>> = PublishSubject.create()
 	var currLoadingItem: Item? = null
 
-	internal fun download(onSuccess: () -> Unit) {
+	override fun download(onSuccess: () -> Unit) {
 		if (status == LoadStatus.IN_PROGRESS) stop()
 		if (items.isEmpty()) {
 			success(onSuccess)
@@ -94,29 +131,28 @@ class Pack(val id: String, val items: List<Item>) {
 		onSuccess.invoke()
 	}
 
-	fun pause() {
+	override fun pause() {
 		if (status != LoadStatus.IN_PROGRESS) return
 		status = LoadStatus.PAUSE
 		currLoadingItem?.pause()
 	}
 
-	fun resume() {
+	override fun resume() {
 		if (status != LoadStatus.PAUSE) return
 		status = LoadStatus.IN_PROGRESS
 		currLoadingItem?.resume()
 	}
 
-	fun stop() {
+	override fun stop() {
 		currLoadingItem?.stop()
 		currLoadingItem = null
 		status = LoadStatus.CANCEL
 	}
 
-	fun isFilesExist() = items.firstOrNull { !it.isExist() } == null
+	override fun isFilesExist() = items.firstOrNull { !it.isExist() } == null
 
 
 	override fun toString(): String {
 		return "Pack(id='$id', items=$items)"
 	}
-
 }

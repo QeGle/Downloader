@@ -7,6 +7,15 @@ import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 
+
+/**
+ * Класс предназначен для загрузки + распаковки самого файла. Не оптимизировано!!
+ *
+ * @param item - содержит ссылку на файл и метаданные
+ * @param onSuccess - вызывается при успешной загрузке. Передается метрика.
+ * @param onProgress - вызывается при прогрессе загрузки
+ * @param onError - вызывается при ошибке загрузки
+ */
 internal class DownloadFile(private val item: Item,
                             var onSuccess: (url: String, loading: Long, fileSize: Long) -> Unit,
                             var onProgress: (progress: Int) -> Unit,
@@ -15,8 +24,14 @@ internal class DownloadFile(private val item: Item,
 	var isPaused = false
 	var isStopped = false
 	private var fileDownloadProgress = .0
+
+
 	fun load() {
 		load(prepareUrl(item.url))
+	}
+
+	fun stop() {
+		isStopped = true
 	}
 
 	private fun prepareUrl(url: String): String {
@@ -172,7 +187,7 @@ internal class DownloadFile(private val item: Item,
 			this.contentLength.toLong()
 
 	private fun File.extract(destFolder: File, onSuccess: () -> Unit) {
-		UnpackZip.unpack(this, destFolder, onSuccess,
+		unpack(this, destFolder, onSuccess,
 			onError = { error(ErrorType.ZIP, it) })
 	}
 
@@ -184,9 +199,5 @@ internal class DownloadFile(private val item: Item,
 			connection?.disconnect()
 		} catch (ignored: IOException) {
 		}
-	}
-
-	fun stopLoading() {
-		isStopped = true
 	}
 }
