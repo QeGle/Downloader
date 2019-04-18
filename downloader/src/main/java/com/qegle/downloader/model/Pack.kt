@@ -6,6 +6,9 @@ import io.reactivex.observers.DisposableObserver
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 
+/**
+ * Интерфейс обертки над загрузкой группы файлов
+ */
 interface IPack {
 	/**
 	 * Уникальный идентификатор

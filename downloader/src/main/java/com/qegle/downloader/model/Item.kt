@@ -8,7 +8,9 @@ import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import java.io.File
 
-
+/**
+ * Интерфейс обертки над загрузкой файла
+ */
 interface IItem {
 	/**
 	 * Уникальный идентификатор

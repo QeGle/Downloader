@@ -15,6 +15,15 @@ import java.util.concurrent.locks.ReentrantLock
  * Интерфейс менеджера загрузок. Содержит основные поля
  */
 interface IDownloadManager {
+
+	/**
+	 * Устанавливает слушателей на различные коллбэки
+	 *
+	 * @param onLoadSuccess - вызывается при успешной загрузке
+	 * @param onLoadError - вызывается при ошибке загрузки
+	 * @param onUnzipError - вызывается при ошибке распаковки
+	 * @param onUnknownError - вызывается при непредусмотренной ошибке
+	 */
 	fun setDownloadListener(
 		onLoadSuccess: (id: String) -> Unit = {},
 		onLoadError: (id: String, message: String) -> Unit = { _, _ -> },
