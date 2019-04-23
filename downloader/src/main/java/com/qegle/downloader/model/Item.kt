@@ -53,7 +53,6 @@ interface IItem {
  *
  */
 class Item(override val id: String, val url: String, var meta: Meta) : IItem {
-	constructor(id: String, url: String, loadingFolder: String) : this(id, url, Meta(loadingFolder))
 
 	var timingListener: TimingListener? = null
 	var status: LoadStatus = LoadStatus.PAUSE

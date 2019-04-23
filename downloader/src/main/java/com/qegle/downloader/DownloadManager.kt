@@ -195,7 +195,6 @@ class DownloadManager(private val sharedPreferences: SharedPreferences, private 
 
 }
 
-const val DOWNLOADED_FILES = "DOWNLOADED_FILES"
 const val UPLOADED = "UPLOADED"
 
 /**

@@ -147,24 +147,26 @@ internal class DownloadFile(private val item: Item,
 				return
 			}
 
-			if (meta.needClearFolder) {
-				destFolder.listFiles().forEach { it.deleteRecursively() }
-			}
+			val resultFolder = if (meta.onNewFolder)
+				File(destFolder, meta.fileName ?: downloadFile.nameWithoutExtension)
+			else
+				destFolder
+
+
+			if (meta.needClearFolder)
+				resultFolder.listFiles()?.forEach { it.deleteRecursively() }
 
 
 			closeConnection(input, output, connection)
+
 			if (downloadFile.extension == "zip") {
-				val unpackFolder = if (meta.onNewFolder)
-					File(destFolder, meta.fileName ?: downloadFile.nameWithoutExtension)
-				else
-					destFolder
-				if (meta.needClearFolder) unpackFolder.listFiles()?.forEach { it.deleteRecursively() }
-				downloadFile.extract(unpackFolder, onSuccess = { onSuccess.invoke(sUrl, loading, fileLength) })
+				downloadFile.extract(resultFolder, onSuccess = { onSuccess.invoke(sUrl, loading, fileLength) })
 			} else {
 				if (fileLength == downloadFile.length() || fileLength == -1L) {
-					if (downloadFile.parentFile.path != destFolder.path)
-						downloadFile.copyTo(File(destFolder,
-							(meta.fileName ?: downloadFile.nameWithoutExtension) + "." + downloadFile.extension), true)
+					if (downloadFile.parentFile.path != resultFolder.path)
+						downloadFile.copyTo(File(resultFolder,
+							(meta.fileName
+								?: downloadFile.nameWithoutExtension) + "." + downloadFile.extension), true)
 					onSuccess.invoke(sUrl, loading, fileLength)
 				}
 			}
